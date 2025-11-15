@@ -1,10 +1,13 @@
 
+
+
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import type { View, AnalyzedMessage, Guest, Task, Urgency, GuestStatus, Category, WeddingEvent, User } from './types';
 import { DashboardIcon, MailIcon, UsersIcon, CheckSquareIcon, MenuIcon, SparklesIcon, CalendarIcon, SettingsIcon, PlusCircleIcon, EditIcon, TrashIcon, XIcon, GoogleIcon, SignOutIcon, UploadIcon } from './components/icons';
 import { analyzeCommunication } from './services/geminiService';
 import * as googleSheetsService from './services/googleSheetsService';
+import { initializeGsi, renderGoogleButton, promptOneTap } from './services/googleAuthService';
 import { useAuth } from './contexts/AuthContext';
 
 
@@ -32,28 +35,43 @@ const STATUS_CLASSES: { [key in GuestStatus]: string } = {
 };
 
 // HELPER & AUTH COMPONENTS
-const LoginScreen: React.FC<{ onSignIn: () => void, isSigningIn: boolean }> = ({ onSignIn, isSigningIn }) => (
-    <div className="w-full h-screen flex flex-col items-center justify-center bg-white dark:bg-gray-900">
-        <div className="text-center p-8">
-            <h1 className="text-6xl font-bold text-gray-900 dark:text-white tracking-tight">Clara</h1>
-            <p className="text-lg text-gray-600 dark:text-gray-300 mt-2">Your AI-Powered Wedding Planning Assistant</p>
-            <p className="max-w-md mx-auto text-gray-500 dark:text-gray-400 mt-4">
-                Sign in to connect your communications and guest list, and let Clara handle the details.
-            </p>
-            <button
-                onClick={onSignIn}
-                disabled={isSigningIn}
-                className="mt-8 bg-white text-gray-800 dark:bg-gray-800 dark:text-white font-semibold py-3 px-6 rounded-lg shadow-md hover:shadow-lg transition-all duration-300 ease-in-out flex items-center justify-center mx-auto border border-gray-300 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-50"
-            >
-                {isSigningIn ? (
-                    <><svg className="animate-spin -ml-1 mr-3 h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Signing in...</>
-                ) : (
-                    <><GoogleIcon className="w-6 h-6 mr-3" /> Sign in with Google</>
-                )}
-            </button>
+const LoginScreen: React.FC = () => {
+    const { handleSignIn } = useAuth();
+    const buttonRendered = useRef(false);
+
+    useEffect(() => {
+        const initGsi = () => {
+            if (initializeGsi(handleSignIn)) {
+                const buttonDiv = document.getElementById('google-signin-button');
+                if (buttonDiv && !buttonRendered.current) {
+                    renderGoogleButton(buttonDiv);
+                    promptOneTap();
+                    buttonRendered.current = true;
+                }
+            }
+        };
+
+        const script = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
+        if (window.google) {
+            initGsi();
+        } else if (script) {
+            script.onload = initGsi;
+        }
+    }, [handleSignIn]);
+
+    return (
+        <div className="w-full h-screen flex flex-col items-center justify-center bg-white dark:bg-gray-900">
+            <div className="text-center p-8">
+                <h1 className="text-6xl font-bold text-gray-900 dark:text-white tracking-tight">Clara</h1>
+                <p className="text-lg text-gray-600 dark:text-gray-300 mt-2">Your AI-Powered Wedding Planning Assistant</p>
+                <p className="max-w-md mx-auto text-gray-500 dark:text-gray-400 mt-4">
+                    Sign in to connect your communications and guest list, and let Clara handle the details.
+                </p>
+                <div id="google-signin-button" className="mt-8 mx-auto flex justify-center"></div>
+            </div>
         </div>
-    </div>
-);
+    );
+};
 
 const UserProfile: React.FC<{ user: User; onSignOut: () => void; }> = ({ user, onSignOut }) => (
     <div className="p-4 mt-auto border-t border-gray-200 dark:border-gray-700">
@@ -120,6 +138,7 @@ const Dashboard: React.FC<{ messages: AnalyzedMessage[]; guests: Guest[]; tasks:
 const CommunicationsFeed: React.FC<{ messages: AnalyzedMessage[]; onNewMessage: (msg: AnalyzedMessage) => void; }> = ({ messages, onNewMessage }) => {
     const [newMessage, setNewMessage] = useState('');
     const [isAnalyzing, setIsAnalyzing] = useState(false);
+    // Fix: Changed `new date()` to `new Date()` to correctly instantiate a Date object.
     const handleAnalyze = async () => { if (!newMessage.trim()) return; setIsAnalyzing(true); const analysis = await analyzeCommunication(newMessage); const newComm: AnalyzedMessage = { communication: { id: `msg_${Date.now()}`, from: 'Manual Entry', subject: newMessage.substring(0, 30) + '...', body: newMessage, date: new Date().toISOString(), source: 'email', }, analysis, }; onNewMessage(newComm); setNewMessage(''); setIsAnalyzing(false); };
     return (<div className="space-y-6"><div className="bg-white dark:bg-gray-800 p-6 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm"><h3 className="text-xl font-bold text-gray-900 dark:text-white mb-4">Analyze a New Message</h3><textarea value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="Paste an email or message here..." className="w-full p-3 bg-gray-50 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition" rows={4} disabled={isAnalyzing} /><button onClick={handleAnalyze} disabled={isAnalyzing} className="mt-3 bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-500 flex items-center justify-center">{isAnalyzing ? (<><svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Analyzing...</>) : (<><SparklesIcon className="w-5 h-5 mr-2" /> Analyze with AI</>)}</button></div><div className="space-y-4">{messages.map(({ communication, analysis }) => (<div key={communication.id} className="bg-white dark:bg-gray-800 p-5 rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm"><div className="flex justify-between items-start"><div><p className="font-bold text-gray-900 dark:text-white">{communication.subject}</p><p className="text-sm text-gray-500 dark:text-gray-400">From: {communication.from} &bull; {new Date(communication.date).toLocaleDateString()}</p></div><span className={`text-xs font-semibold px-2 py-1 rounded-full border ${URGENCY_CLASSES[analysis.urgency]}`}>{analysis.urgency}</span></div><p className="mt-3 text-gray-700 dark:text-gray-300">{analysis.summary}</p><div className="mt-4 flex flex-wrap gap-2"><span className="text-xs font-medium px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full">{analysis.category}</span><span className="text-xs font-medium px-2 py-1 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 rounded-full">Sentiment: {analysis.sentiment}</span></div></div>))}</div></div>);
 };
@@ -198,7 +217,7 @@ const GuestModal: React.FC<{ guest: Partial<Guest> | null; onClose: () => void; 
 
 // MAIN APP COMPONENT
 export default function App() {
-    const { user, isAuthenticated, isLoading: isAuthLoading, signIn, signOut } = useAuth();
+    const { user, isAuthenticated, isLoading: isAuthLoading, signOut } = useAuth();
     const [view, setView] = useState<View>('dashboard');
     const [messages, setMessages] = useState<AnalyzedMessage[]>(initialMessages);
     const [guests, setGuests] = useState<Guest[]>([]);
@@ -363,7 +382,7 @@ export default function App() {
     }
 
     if (!isAuthenticated || !user) {
-        return <LoginScreen onSignIn={signIn} isSigningIn={isAuthLoading} />;
+        return <LoginScreen />;
     }
 
     const renderView = () => {

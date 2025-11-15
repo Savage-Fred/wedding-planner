@@ -1,12 +1,13 @@
+
 import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
 import { User } from '../types';
-import { signInWithGoogle as apiSignIn, signOut as apiSignOut, checkInitialAuthState } from '../services/googleAuthService';
+import { checkInitialAuthState, signOut as apiSignOut, decodeJwtResponse, createClaraUserFromGoogle } from '../services/googleAuthService';
 
 interface AuthContextType {
     user: User | null;
     isAuthenticated: boolean;
     isLoading: boolean;
-    signIn: () => Promise<void>;
+    handleSignIn: (response: any) => void;
     signOut: () => Promise<void>;
 }
 
@@ -17,7 +18,6 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        // Check for a logged-in user in local storage on initial load
         const initialUser = checkInitialAuthState();
         if (initialUser) {
             setUser(initialUser);
@@ -25,11 +25,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         setIsLoading(false);
     }, []);
 
-    const signIn = async () => {
+    const handleSignIn = (gsiResponse: any) => {
         setIsLoading(true);
         try {
-            const loggedInUser = await apiSignIn();
-            setUser(loggedInUser);
+            const payload = decodeJwtResponse(gsiResponse.credential);
+            const claraUser = createClaraUserFromGoogle(payload);
+            if(claraUser) {
+                localStorage.setItem('wedding_planner_user', JSON.stringify(claraUser));
+                setUser(claraUser);
+            } else {
+                 throw new Error("Could not create user from Google response");
+            }
         } catch (error) {
             console.error("Sign in failed:", error);
             setUser(null);
@@ -37,14 +43,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
             setIsLoading(false);
         }
     };
-
+    
     const signOut = async () => {
         await apiSignOut();
         setUser(null);
     };
 
     return (
-        <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, signIn, signOut }}>
+        <AuthContext.Provider value={{ user, isAuthenticated: !!user, isLoading, handleSignIn, signOut }}>
             {children}
         </AuthContext.Provider>
     );
