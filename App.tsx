@@ -1,6 +1,7 @@
 
 
 
+
 import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import type { View, AnalyzedMessage, Guest, Task, Urgency, GuestStatus, Category, WeddingEvent, User } from './types';
@@ -38,6 +39,7 @@ const STATUS_CLASSES: { [key in GuestStatus]: string } = {
 const LoginScreen: React.FC = () => {
     const { handleSignIn } = useAuth();
     const buttonRendered = useRef(false);
+    const clientIdIsSet = !!process.env.GOOGLE_CLIENT_ID;
 
     useEffect(() => {
         const initGsi = () => {
@@ -45,7 +47,9 @@ const LoginScreen: React.FC = () => {
                 const buttonDiv = document.getElementById('google-signin-button');
                 if (buttonDiv && !buttonRendered.current) {
                     renderGoogleButton(buttonDiv);
-                    promptOneTap();
+                    if (clientIdIsSet) {
+                       promptOneTap();
+                    }
                     buttonRendered.current = true;
                 }
             }
@@ -57,7 +61,7 @@ const LoginScreen: React.FC = () => {
         } else if (script) {
             script.onload = initGsi;
         }
-    }, [handleSignIn]);
+    }, [handleSignIn, clientIdIsSet]);
 
     return (
         <div className="w-full h-screen flex flex-col items-center justify-center bg-white dark:bg-gray-900">
@@ -68,6 +72,13 @@ const LoginScreen: React.FC = () => {
                     Sign in to connect your communications and guest list, and let Clara handle the details.
                 </p>
                 <div id="google-signin-button" className="mt-8 mx-auto flex justify-center"></div>
+                {!clientIdIsSet && (
+                    <div className="mt-4 max-w-md mx-auto p-3 bg-yellow-50 dark:bg-yellow-900/50 rounded-lg border border-yellow-200 dark:border-yellow-500/30">
+                        <p className="text-sm text-yellow-700 dark:text-yellow-300">
+                            <strong>Preview Mode:</strong> Google Sign-In requires configuration. Please set the <code>GOOGLE_CLIENT_ID</code> environment variable in your deployment to enable it.
+                        </p>
+                    </div>
+                )}
             </div>
         </div>
     );

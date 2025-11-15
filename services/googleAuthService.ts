@@ -21,14 +21,14 @@ const decodeJwtResponse = (token: string): any => {
 };
 
 export const initializeGsi = (handleCredentialResponse: (response: any) => void) => {
-    const clientId = process.env.GOOGLE_CLIENT_ID;
+    let clientId = process.env.GOOGLE_CLIENT_ID;
     if (!window.google) {
         console.error('Google GSI script not loaded.');
         return false;
     }
     if (!clientId) {
-        console.error("Google Client ID is not configured. Please set GOOGLE_CLIENT_ID environment variable.");
-        return false;
+        console.warn("GOOGLE_CLIENT_ID is not set. Using a placeholder for preview purposes. Google Sign-In will not function but the button will render for UI demonstration.");
+        clientId = 'YOUR_GOOGLE_CLIENT_ID_HERE.apps.googleusercontent.com'; // A valid-looking placeholder to prevent GSI library errors on init
     }
 
     window.google.accounts.id.initialize({
