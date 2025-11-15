@@ -1,0 +1,5 @@
+{
+  "name": "Wedding Planner App",
+  "description": "An intelligent dashboard to help you manage and organize all your wedding planning communications. It uses AI to analyze emails and messages, extract tasks, update your guest list, and highlight urgent items, ensuring you never miss a detail.",
+  "requestFramePermissions": []
+}
